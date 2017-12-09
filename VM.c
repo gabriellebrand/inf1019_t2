@@ -11,8 +11,9 @@
 #include "VM.h"
 
 #define OCUPADO 1
-#define MAXTABLE 5
+#define MAXFRAME 10
 #define ZERAR 100
+#define MAXTABLE 100
 
 int counter = 0;
 
@@ -23,18 +24,13 @@ union semUn {
 	short * array;
 };
 
-struct line
+struct table
 {
 	unsigned short page;
 	unsigned short frame;
 	int modificado;
 	int referenciado;
-};
-
-struct table
-{
-	struct line line[MAXTABLE];
-	int fim;
+	int valido;
 };
 
 struct swapRequest
@@ -84,40 +80,49 @@ int semaforoV()
 void leastFrequentlyUsed (int procID, int *menori, int *menorj)
 {
 	int i, j;
-	*menori = 0;
 
-	while(Table[*menori]->fim == 0) {
-		(*menori)++;
+	//acha o primeiro elemento valido para ser comparado
+	for (i=0; i<4; i++)
+		for (j=1; j<MAXTABLE; j++) {
+			if (Table[i][j]->valido) {
+				*menori = i;
+				*menorj = j;
+				break;
+			}
 	}
 
-	*menorj=0;
 	for (i=0; i<4; i++)
-		for (j=1; j<Table[i]->fim; j++) {
-			//printf("\ntable[i]%04x table[menor]%04x menorj = %d menori = %d\n", Table[i]->line[j].page, Table[*menori]->line[*menorj].page, *menorj, *menori);
-			if (  (Table[i]->line[j].referenciado <  Table[*menori]->line[*menorj].referenciado)//Escolhe o menos referenciado
-				||(Table[i]->line[j].referenciado == Table[*menori]->line[*menorj].referenciado && Table[i]->line[j].modificado <  Table[*menori]->line[*menorj].modificado) //Preferencia para nao modificado
-				||(Table[i]->line[j].referenciado == Table[*menori]->line[*menorj].referenciado && Table[i]->line[j].modificado == Table[*menori]->line[*menorj].modificado && i==procID)) //Preferencia para pagina do mesmo processo
-			{
-				*menori=i;
-				*menorj=j;
+		for (j=1; j<MAXTABLE; j++) {
+			if (Table[i][j]->valido) {
+			//printf("\ntable[i]%04x table[menor]%04x menorj = %d menori = %d\n", Table[i][j]->page, Table[*menori][*menorj]->page, *menorj, *menori);
+				if ((Table[i][j]->referenciado <  Table[*menori][*menorj]->referenciado)//Escolhe o menos referenciado
+					||(Table[i][j]->referenciado == Table[*menori][*menorj]->referenciado && Table[i][j]->modificado <  Table[*menori][*menorj]->modificado) //Preferencia para nao modificado
+					||(Table[i][j]->referenciado == Table[*menori][*menorj]->referenciado && Table[i][j]->modificado == Table[*menori][*menorj]->modificado && i==procID)) //Preferencia para pagina do mesmo processo
+				{
+					*menori=i;
+					*menorj=j;
 
-			//	printf("\ntrocou\n");
+				//	printf("\ntrocou\n");
+				}
 			}	
 		}			
 }
 
-int isOnTable (PageTable *table, unsigned short page, unsigned short *frame, char rw)
+int isOnMemory (PageTable *table, unsigned short page, unsigned short *frame, char rw)
 {
-	unsigned short i;
-	for (i=0; i<table->fim; i++)
-	{
-		if (table->line[i].page==page)
+	unsigned short i, j;
+	for (j = 0; j < 4; j++) {
+		for (i=0; i<MAXTABLE i++)
 		{
-			*frame = table->line[i].frame;
-			if (rw=='W')
-				table->line[i].modificado = 1;
-			table->line[i].referenciado++;
-			return 1;
+			if (table[i]->page == page && table[i]->valido)
+			{
+				*frame = table[i]->frame;
+				if (rw=='W')
+					table[i]->modificado = 1;
+				table[i]->referenciado++;
+
+				return 1;
+			}
 		}
 	}
 	return 0;
@@ -125,23 +130,25 @@ int isOnTable (PageTable *table, unsigned short page, unsigned short *frame, cha
 
 int freeFrame (unsigned short *free)
 {
-	char frame[MAXTABLE];
+	char frame[MAXFRAME];
 	unsigned short i, j;
 
 	//checa se todos os frames da memoria fisica estao ocupados
-	if (Table[0]->fim+Table[1]->fim+Table[2]->fim+Table[3]->fim >= MAXTABLE)
-		return 0;
 
 	//se tiver algum disponivel, faz uma busca 
 	for (i=0; i<4; i++)
-		for (j=0; j<Table[i]->fim; j++)
-			frame[Table[i]->line[j].frame] = OCUPADO;
+		for (j=0; j<MAXTABLE; j++) {
+			if (Table[i][j]->valido)
+				frame[Table[i][j]->frame] = OCUPADO;
+		}
 
 	i=0;
-	while (frame[i] == OCUPADO) {i++;} //Acha o primeiro desocupado
+	while (frame[i] == OCUPADO && i < MAXFRAME) {i++;} //Acha o primeiro desocupado
 
+	if (i == MAXFRAME)
+		return 0;
+	
 	*free = i;
-
 	return 1;
 }
 
@@ -149,27 +156,44 @@ void zerarReferenciado ()
 {
 	int i, j;
 	for (i=0; i<4; i++)
-		for (j=0; j<Table[i]->fim; j++)
-			Table[i]->line[j].referenciado = 0;
+		for (j=0; j<MAXTABLE; j++)
+			Table[i][j]->referenciado = 0;
+}
+
+int procuraPagina(PageTable *table, unsigned short page) {
+	int i;
+
+	//verifica se ja foi colocado na page table
+	for (i=0;i<MAXTABLE; i++) {
+		if (table[i]->page == page)
+			return i;
+	}
+
+	//retorna a primeira linha livre
+	for (i = 0; table[i]->page != 0; i++);
+	return i;
 }
 
 void swap (int procID, unsigned short page, char rw)
 {
 	unsigned short freeframe;
-	int menori, menorj;
+	int menori, menorj, pageOnTable;
 	counter++;
 	//printf("\n[GM][swap] swapmem frame = %04x\n", swapmem->frame);
 	sleep(1);
 
 	if (counter>ZERAR)
 		zerarReferenciado();
+
+	pageOnTable = procuraPagina(Table[procID], page);
+
 	if (freeFrame(&freeframe)) //Existe frame livre
 	{
-		Table[procID]->line[Table[procID]->fim].page = page;
-		Table[procID]->line[Table[procID]->fim].frame = freeframe;
-		Table[procID]->line[Table[procID]->fim].modificado = (rw == 'W');
-		Table[procID]->line[Table[procID]->fim].referenciado = 1;
-		Table[procID]->fim++;
+		Table[procID][pageOnTable]->page = page;
+		Table[procID][pageOnTable]->frame = freeframe;
+		Table[procID][pageOnTable]->modificado = (rw == 'W');
+		Table[procID][pageOnTable]->referenciado = 1;
+		Table[procID][pageOnTable]->valido = 1;
 
 		//printf("\n[GM][swap] swapmem frame = %04x", swapmem->frame);
 		swapmem->frame = freeframe;
@@ -178,35 +202,26 @@ void swap (int procID, unsigned short page, char rw)
 	else //Todos os frames estao ocupados
 	{
 		leastFrequentlyUsed(procID, &menori, &menorj);
-		if (Table[menori]->line[menorj].modificado) //Swap com pagina modificada (2 segundos)
+		if (Table[menori][menorj]->modificado) //Swap com pagina modificada (2 segundos)
 		{
 			printf("Swap com pagina modificada\n");
 			sleep(1);
 		}
-		printf("Swap-out %04x (processo %d)\n", Table[menori]->line[menorj].page, menori);
-		if (menori == procID) //Swap de mesmo processo, sobrescreve
-		{
-			Table[menori]->line[menorj].page = page;
-			Table[menori]->line[menorj].modificado = (rw == 'W');
-			Table[menori]->line[menorj].referenciado = 1;
-			swapmem->frame = Table[menori]->line[menorj].frame;
-		}
-		else //esta tirando de uma tabela e colocando na outra
-		{
-			Table[procID]->line[Table[procID]->fim].page = page;									//Adicionando entrada da tabela do processo
-			Table[procID]->line[Table[procID]->fim].frame = Table[menori]->line[menorj].frame;
-			Table[procID]->line[Table[procID]->fim].modificado = (rw == 'W');
-			Table[procID]->line[Table[procID]->fim].referenciado = 1;
-			Table[procID]->fim++;
+		printf("Swap-out %04x (processo %d)\n", Table[menori][menorj]->page, menori);
 
-			swapmem->frame = Table[menori]->line[menorj].frame;
+		Table[menori][menorj]->valido = 0;
 
-			Table[menori]->line[menorj] = Table[menori]->line[Table[menori]->fim-1]; //Retirando entrada da tabela com o endereco menos referenciado
-			Table[menori]->fim--;
+			Table[procID][pageOnTable]->page = page;
+			Table[procID][pageOnTable]->modificado = (rw == 'W');
+			Table[procID][pageOnTable]->referenciado = 1;
+			//passa o frame do que tá saindo pro que tá entrando
+			Table[procID][pageOnTable]->frame = Table[menori][menorj]->frame;
+			Table[procID][pageOnTable]->valido = 1;
+			swapmem->frame = Table[menori][menorj]->frame;
 
-
+		
+		if (menori != procID)
 			kill(pid[menori], SIGUSR2); //Avisa q perdeu uma pagina
-		}
 
 	}
 
@@ -231,10 +246,10 @@ SwapRequest* inicializaSwapmem (int *swapmemID)
 	return (SwapRequest*) shmat (*swapmemID, 0, 0);
 }
 
-//Aloca uma tabela de paginas com MAXTABLE entradas
+//Aloca uma tabela de paginas com MAXFRAME entradas
 PageTable* inicializaTable (int *TableID)
 {
-	*TableID = shmget (IPC_PRIVATE, sizeof(PageTable), IPC_CREAT|S_IRWXU);
+	*TableID = shmget (IPC_PRIVATE, sizeof(PageTable)*MAXTABLE, IPC_CREAT|S_IRWXU);
 	return (PageTable*) shmat (*TableID, 0, 0);
 }
 
@@ -252,11 +267,11 @@ void liberaSwap ()
 
 void imprimeTable ()
 {
-	int i=0, j=0;
+	int i, j;
 	for (i=0; i<4; i++)
 	{
-		for (j=0; j<Table[i]->fim; j++)
-			printf("%04x %04x %d %d\n", Table[i]->line[j].page, Table[i]->line[j].frame, Table[i]->line[j].modificado, Table[i]->line[j].referenciado);
+		for (j=0; j<MAXTABLE; j++)
+			printf("%04x %04x %d %d\n", Table[i][j].page, Table[i][j]->frame, Table[i][j]->modificado, Table[i][j]->referenciado);
 		printf("\n");
 	}
 }
@@ -277,9 +292,9 @@ void request (int procID,  unsigned int addr, char rw)
 	page = (addr>>16);
 	offset = addr;
 	
-	if (!isOnTable(Table[procID], page, &frame, rw))
+	if (!isOnMemory(Table[procID], page, &frame, rw))
 	{
-		//printf("[isOnTable] frame = %04x\n", frame);
+		//printf("[isOnMemory] frame = %04x\n", frame);
 		printf("\t\tPage fault para endereco %08x\n", addr);
 
 		askForSwap(procID, page, rw);
