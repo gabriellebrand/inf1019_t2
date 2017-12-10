@@ -29,11 +29,12 @@ int main (void)
 
 	swapmemID = 0;
 
-	char *filename[]={"compilador.log","simulador.log","matriz.log","compressor.log"};
-	char *printstr[]={"[COMPILADOR]\t%08x %c %d\n","[SIMULADOR]\t%08x %c %d\n","[MATRIZ]\t%08x %c %d\n","[COMPRESSOR]\t%08x %c %d\n"};
+	char *filename[]={"compilador.log","matriz.log","compressor.log", "simulador.log"};
+	char *printstr[]={"[COMPILADOR]\t%08x %c %d\n","[MATRIZ]\t%08x %c %d\n","[COMPRESSOR]\t%08x %c %d\n","[SIMULADOR]\t%08x %c %d\n"};
 	
 	signal(SIGUSR1, sigusr1Handler);
 	signal(SIGINT, intHandler);
+	signal(SIGUSR2, sigusr2Handler);
 	
 	//configura semaforo
 	semID = semget (8761, 1, 0666 | IPC_CREAT);
@@ -47,16 +48,17 @@ int main (void)
 		Table[i] = initTable(&TableID[i]);
 		if ((pid[i]=fork())==0)
 		{
-			//if (i!=1) exit(1);
+			
 			j = 0;
 			file[i] = fopen(filename[i], "r");
-			sleep(1); //garante q o GM inicializou o seu loop infinito
+			sleep(2); //garante q o GM inicializou o seu loop infinito
 			
+			//if (i==1) {
 			while (j<=10)
 			{
 				
 				fscanf(file[i], "%x %c ", &addr, &rw);
-				
+				printf("\nTO AGUARDANDO P%d\n",i);
 				semaforoP();
 				printf(printstr[i], addr, rw, j);
 				request(i, addr, rw);
@@ -67,12 +69,13 @@ int main (void)
 				j++;
 				
 
-			}
+			} //}
 			printf("processo morreu \n");
 
 			emptyTable(Table[i]);
 			//esvaziaTabela(Table[i]);
 			//while(1);
+			//while (fscanf(file[i], "%x %c ", &addr, &rw) == 2);
 			//shmdt(Table[i]);
 
 			fclose (file[i]);
