@@ -24,7 +24,7 @@ int main (void)
 {
 	unsigned int addr;
 	char rw;
-	int status, i, j=0;
+	int wait, status, i, j=0;
 	FILE *file[4];
 
 	swapmemID = 0;
@@ -35,20 +35,23 @@ int main (void)
 	signal(SIGUSR1, sigusr1Handler);
 	signal(SIGINT, intHandler);
 	
+	//configura semaforo
 	semID = semget (8761, 1, 0666 | IPC_CREAT);
 	setSemValue(semID);
 	
+	//inicializa area de memoria que armazena a pagina de page out / page fault
 	swapmem = inicializaSwapmem (&swapmemID);
+
 	for (i=0; i<4; i++)
 	{
-		Table[i] = inicializaTable(&TableID[i]);
+		Table[i] = initTable(&TableID[i]);
 		if ((pid[i]=fork())==0)
 		{
 			//if (i!=1) exit(1);
 			j = 0;
-			sleep(1); //garante q o GM inicializou o seu loop infinito
 			file[i] = fopen(filename[i], "r");
-
+			sleep(1); //garante q o GM inicializou o seu loop infinito
+			
 			while (j<=10)
 			{
 				
@@ -67,8 +70,9 @@ int main (void)
 			}
 			printf("processo morreu \n");
 
-			esvaziaTabela(Table[i]);
-			while(1);
+			emptyTable(Table[i]);
+			//esvaziaTabela(Table[i]);
+			//while(1);
 			//shmdt(Table[i]);
 
 			fclose (file[i]);
@@ -82,10 +86,10 @@ int main (void)
 	//while(1);
 
 	for (i=0;i<4;i++) {
-		printf("waitpid = %d\n", waitpid(-1, &status, 0));
+		wait = waitpid(-1, &status, 0);
+		printf("waitpid = %d\n", wait);
 	}
 
-	
 	for (i=0; i<4; i++)
 		liberaTable(Table[i], TableID[i]);
 	
