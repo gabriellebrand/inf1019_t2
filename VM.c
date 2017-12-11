@@ -252,10 +252,10 @@ void swap (int procID, unsigned short page, char rw)
 		//TODO: ADICIONAR UM SWAPMEM SÓ PRA PAGE OUT -> necessario?
 		//DUVIDA: por que só quando o processo for diferente?
 		if (menori != procID) {
-			swapmem->procID =  menori;
-			swapmem->rw =  Table[menori]->line[menorj].M;
-			swapmem->page = Table[menori]->line[menorj].page;
-			swapmem->frame = Table[menori]->line[menorj].frame;
+			//swapmem->procID =  menori;
+			//swapmem->rw =  Table[menori]->line[menorj].M;
+			//swapmem->page = Table[menori]->line[menorj].page;
+			//swapmem->frame = Table[menori]->line[menorj].frame;
 			kill(pid[menori], SIGUSR2); //Avisa que perdeu uma pagina
 		}
 		
