@@ -91,7 +91,8 @@ int main (void)
 	//while(1);
 
 	for (i=0;i<4;i++) {
-		wait = waitpid(-1, &status, 0);
+		sleep(1);
+		wait = waitpid(-1, &status, WNOHANG);
 		printf("waitpid = %d\n", wait);
 	}
 
