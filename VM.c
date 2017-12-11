@@ -26,7 +26,6 @@ union semUn
 
 struct line
 {
-	unsigned short page;
 	unsigned short frame;
 	int M;
 	int R;
@@ -96,15 +95,15 @@ int semaforoV()
 }
 ///////////////////////////
 
-void printTables ()
+void printMemory ()
 {
 	int i, j;
-	for (i=0; i<4; i++)
+	for (i=0; i<MAXFRAME; i++)
 	{	
-		if(Table[i]-> dead) continue; //só vai imprimir as tabelas dos processos que ainda estão ativos
-		printf("PAGE\t FRAME\t M\t R\t V\t (P%d)\n", i);
-		for (j=0; j<Table[i]->last; j++) //só vai imprimir os indices da tabela que ja foi preenchido com paginas
-			printf("%04x\t %04x\t %d\t %d\t %d\n", Table[i]->line[j].page, Table[i]->line[j].frame, Table[i]->line[j].M, Table[i]->line[j].R, Table[i]->line[j].V);
+		//if(Table[memframe[i].process]-> dead) continue; //só vai imprimir as tabelas dos processos que ainda estão ativos
+		printf("PAGE\t FRAME\t M\t R\t (P%d)\n", memframe[i].process);
+		//só vai imprimir os indices da tabela que ja foi preenchido com paginas
+			printf("%04x\t %04x\t %d\t %d\n", memframe[i].page, i, Table[memframe[i].process]->line[memframe[i].page].M, Table[memframe[i].process]->line[memframe[i].page].R);
 		printf("\n");
 	}
 }
@@ -198,7 +197,6 @@ int freeFrame (unsigned short *free)
 	if (i == MAXFRAME) // nao existe frame livre
 		return 0;
 
-	memframe[i].status = OCUPADO; //marca o novo frame como ocupado
 	*free = i;
 
 	return 1;
@@ -231,6 +229,8 @@ void swap (int procID, unsigned short page, char rw)
 	{
 		Table[procID]->line[page].frame = freeframe;
 
+		memframe[freeFrame].process = procID;
+		memframe[freeFrame].page = page;
 		//printf("\n[GM][swap] swapmem frame = %04x", swapmem->frame);
 		//[DUVIDA]pra que isso?
 		swapmem->frame = freeframe;
@@ -251,21 +251,22 @@ void swap (int procID, unsigned short page, char rw)
 
 		//TODO: ADICIONAR UM SWAPMEM SÓ PRA PAGE OUT -> necessario?
 		//DUVIDA: por que só quando o processo for diferente?
-		if (menori != procID) {
+		//if (menori != procID) {
 			//swapmem->procID =  menori;
 			//swapmem->rw =  Table[menori]->line[menorj].M;
 			//swapmem->page = Table[menori]->line[menorj].page;
 			//swapmem->frame = Table[menori]->line[menorj].frame;
 			kill(pid[menori], SIGUSR2); //Avisa que perdeu uma pagina
-		}
-		
+		//}
+
+		memframe[Table[menori]->line[menorj].frame].process = procID;
+		memframe[Table[menori]->line[menorj].frame].page = page;
 		//passa o frame do que tá saindo pro que tá entrando
 		Table[procID]->line[page].frame = Table[menori]->line[menorj].frame;
 		//Table[menori]->line[menorj].frame = 0xffff; //só para ficar visivel na tabela que a page nao tem frame	
 	}
 
 	//termina de configurar os valores da page pós page fault
-	Table[procID]->line[page].page = page;
 	Table[procID]->line[page].M = (rw == 'W');
 	Table[procID]->line[page].R = 1;
 	Table[procID]->line[page].V = 1;
