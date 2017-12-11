@@ -183,22 +183,13 @@ int freeFrame (unsigned short *free)
 
 	//checa se todos os frames da memoria fisica estao ocupados
 
-	//se tiver algum disponivel, faz uma busca 
-	/*
-	for (i=0; i<4; i++)
-		for (j=0; j<MAXTABLE; j++) {
-			if (Table[i]->line[j].V)
-				frame[Table[i][j].frame] = OCUPADO;
-		}
-	*/
-
 	for (i = 0; memframe[i].status == OCUPADO && i < MAXFRAME; i++); //Acha o primeiro desocupado
 
 	if (i == MAXFRAME) // nao existe frame livre
 		return 0;
 
 	*free = i;
-
+	printf("\ni = %d\n", i);
 	return 1;
 }
 
@@ -215,7 +206,7 @@ void zerarReferenciado ()
 void swap (int procID, unsigned short page, char rw)
 {
 	unsigned short freeframe;
-	int menori, menorj;
+	int menori, menorj, frame;
 	counter++;
 	//printf("\n[GM][swap] swapmem frame = %04x\n", swapmem->frame);
 	//[DUVIDA]PRA QUE ESSE SLEEP?
@@ -227,10 +218,12 @@ void swap (int procID, unsigned short page, char rw)
 
 	if (freeFrame(&freeframe)) //Existe frame livre
 	{
+		memframe[freeframe].status = OCUPADO;
 		Table[procID]->line[page].frame = freeframe;
+		printf("\nframe livre %04x\n", freeframe);
 
-		memframe[(int)freeFrame].process = procID;
-		memframe[(int)freeFrame].page = page;
+		memframe[freeframe].process = procID;
+		memframe[freeframe].page = page;
 		//printf("\n[GM][swap] swapmem frame = %04x", swapmem->frame);
 		//[DUVIDA]pra que isso?
 		swapmem->frame = freeframe;
@@ -270,6 +263,7 @@ void swap (int procID, unsigned short page, char rw)
 	Table[procID]->line[page].M = (rw == 'W');
 	Table[procID]->line[page].R = 1;
 	Table[procID]->line[page].V = 1;
+
 }
 
 /*
@@ -359,7 +353,6 @@ void request (int procID,  unsigned int addr, char rw)
 		askForSwap(procID, page, rw);
 		sleep(1);	//Garante que ele recebe o sigstop antes de sair da funcao
 
-		//frame = swapmem->frame;
 		//printf("[P][request]swapmem->frame = %04x",swapmem->frame);
 		printf("\t\t%c :%08x -> %04x%04x\n",rw, addr, Table[procID]->line[page].frame, offset);
 	} else {
