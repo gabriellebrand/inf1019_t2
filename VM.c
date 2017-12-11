@@ -98,13 +98,12 @@ int semaforoV()
 void printMemory ()
 {
 	int i;
+	printf("PAGE\t FRAME\t M\t R\t (P)\t STATUS\n");
 	for (i=0; i<MAXFRAME; i++)
 	{	
 		//if(Table[memframe[i].process]-> dead) continue; //só vai imprimir as tabelas dos processos que ainda estão ativos
-		printf("PAGE\t FRAME\t M\t R\t (P%d)\n", memframe[i].process);
 		//só vai imprimir os indices da tabela que ja foi preenchido com paginas
-			printf("%04x\t %04x\t %d\t %d\n", memframe[i].page, i, Table[memframe[i].process]->line[memframe[i].page].M, Table[memframe[i].process]->line[memframe[i].page].R);
-		printf("\n");
+		printf("%04x\t %04x\t %d\t %d\t %d\t %d\n", memframe[i].page, i, Table[memframe[i].process]->line[memframe[i].page].M, Table[memframe[i].process]->line[memframe[i].page].R, memframe[i].process, memframe[i].status);
 	}
 }
 
@@ -275,7 +274,7 @@ void sigusr1Handler (int signal)
 	kill(pid[swapmem->procID], SIGSTOP);
 
 	//printf("[GM][sigusrHandler-]swapmem->frame = %04x",swapmem->frame);
-	//printTables();
+	printMemory();
 	swap (swapmem->procID, swapmem->page, swapmem->rw);
 
 	//printf("[GM][sigusrHandler]swapmem->frame = %04x",swapmem->frame);
