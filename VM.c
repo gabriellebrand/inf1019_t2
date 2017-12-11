@@ -8,21 +8,18 @@
 #include <sys/shm.h>
 #include <sys/sem.h>
 #include <sys/stat.h>
+#include <errno.h>
 #include "VM.h"
 
 #define OCUPADO 1
 #define LIVRE 0
 #define MAXFRAME 10
 #define ZERAR 100
-#define MAXTABLE 100
-
-char memoryFrame[MAXFRAME];
-int counter = 0;
+#define MAXTABLE 65536
 
 union semUn 
 {
-	int
-	val;
+	int val;
 	struct semid_ds *buf;
 	short * array;
 };
@@ -36,11 +33,18 @@ struct line
 	int V;
 };
 
-struct table 
+struct table
 {
 	struct line line[MAXTABLE];
 	int last; //ultimo indice da tabela que ja foi preenchido com uma page
 	char dead; // 1 -> processo ja morreu | 0 -> processo ainda esta executando
+};
+
+struct memoryFrame
+{
+	unsigned short page;
+	unsigned char status;
+	int process;
 };
 
 //memoria compartilhada para que o processo fique sabendo qual 
@@ -52,6 +56,10 @@ struct swapRequest
 	unsigned short frame;
 	char rw;
 };
+
+struct memoryFrame memframe[MAXFRAME];
+int counter = 0;
+
 
 //////Funcoes de semaforo//////////
 int setSemValue()
@@ -108,9 +116,9 @@ void sigusr2Handler (int signal) {
 
 void leastFrequentlyUsed (int procID, int *menori, int *menorj)
 {
-	int i, j;
+	int i;
 
-	//acha o primeiro elemento valido para ser comparado
+	/*
 	for (i=0; i<4; i++)
 		for (j=1; j<Table[i]->last; j++) {
 			if (Table[i]->line[j].V) {
@@ -119,22 +127,24 @@ void leastFrequentlyUsed (int procID, int *menori, int *menorj)
 				break;
 			}
 	}
+	*/
 
-	for (i=0; i<4; i++)
-		for (j=1; j<Table[i]->last; j++) {
-			if (Table[i]->line[j].V) {
+	//inicializa com os valores do frame 0
+	*menori = memframe[0].process;
+	*menorj = memframe[0].page;
+
+	for (i=0; i < MAXFRAME; i++) {
 			//printf("\ntable[i]%04x table[menor]%04x menorj = %d menori = %d\n", Table[i][j].page, Table[*menori][*menorj].page, *menorj, *menori);
-				if ((Table[i]->line[j].R <  Table[*menori]->line[*menorj].R)//Escolhe o menos referenciado
-					||(Table[i]->line[j].R == Table[*menori]->line[*menorj].R && Table[i]->line[j].M <  Table[*menori]->line[*menorj].M) //Preferencia para nao modificado
-					||(Table[i]->line[j].R == Table[*menori]->line[*menorj].R && Table[i]->line[j].M  == Table[*menori]->line[*menorj].M && i==procID)) //Preferencia para pagina do mesmo processo
-				{
-					*menori=i;
-					*menorj=j;
-
+			if ((Table[memframe[i].process]->line[memframe[i].page].R  <  Table[*menori]->line[*menorj].R) //Escolhe o menos referenciado
+				||(Table[memframe[i].process]->line[memframe[i].page].R == Table[*menori]->line[*menorj].R && Table[memframe[i].process]->line[memframe[i].page].M <  Table[*menori]->line[*menorj].M) //Preferencia para nao modificado
+				||(Table[memframe[i].process]->line[memframe[i].page].R == Table[*menori]->line[*menorj].R && Table[memframe[i].process]->line[memframe[i].page].M  == Table[*menori]->line[*menorj].M && memframe[i].process==procID)) //Preferencia para pagina do mesmo processo
+			{
+				*menori=memframe[i].process;
+				*menorj=memframe[i].page;
 				//	printf("\ntrocou\n");
-				}
-			}	
-		}			
+			}
+	}	
+				
 }
 
 /*
@@ -145,23 +155,19 @@ void leastFrequentlyUsed (int procID, int *menori, int *menorj)
 
 int isOnMemory (PageTable *table, unsigned short page, unsigned short *frame, char rw)
 {
-	unsigned short i;
 
-	for (i=0; i<table->last; i++)
+	if (table->line[page].V == 1)
 	{
-		if (table->line[i].page == page && table->line[i].V == 1)
-		{
 			//retorna por referencia o frame de onde esta a pagina
-			*frame = table->line[i].frame;
+			*frame = table->line[page].frame;
 			//se a nova solicitacao for de escrita, deve modificar o bit para 1
 			//DUVIDA: se a nova solicitacao for de leitura, deve-se manter o bit anterior?
 			if (rw=='W')
-				table->line[i].M = 1;
+				table->line[page].M = 1;
 			
 			//soma +1 no numero de referencias
-			table->line[i].R++;
+			table->line[page].R++;
 			return 1;			
-		}
 	}
 	return 0;
 }
@@ -174,26 +180,27 @@ int isOnMemory (PageTable *table, unsigned short page, unsigned short *frame, ch
 
 int freeFrame (unsigned short *free)
 {
-	//char frame[MAXFRAME];
-	unsigned short i = 0;
+	unsigned short i;
 
 	//checa se todos os frames da memoria fisica estao ocupados
 
 	//se tiver algum disponivel, faz uma busca 
-	// for (i=0; i<4; i++)
-	// 	for (j=0; j<MAXTABLE; j++) {
-	// 		if (Table[i]->line[j].V)
-	// 			frame[Table[i][j].frame] = OCUPADO;
-	// 	}
+	/*
+	for (i=0; i<4; i++)
+		for (j=0; j<MAXTABLE; j++) {
+			if (Table[i]->line[j].V)
+				frame[Table[i][j].frame] = OCUPADO;
+		}
+	*/
 
-	//i=0;
-	while (memoryFrame[i] == OCUPADO && i < MAXFRAME) {i++;} //Acha o primeiro desocupado
+	for (i = 0; memframe[i].status == OCUPADO && i < MAXFRAME; i++); //Acha o primeiro desocupado
 
-	if (i == MAXFRAME)
+	if (i == MAXFRAME) // nao existe frame livre
 		return 0;
 
-	memoryFrame[i] = OCUPADO; //marca a nova pagina como ocupada
+	memframe[i].status = OCUPADO; //marca o novo frame como ocupado
 	*free = i;
+
 	return 1;
 }
 
@@ -207,39 +214,22 @@ void zerarReferenciado ()
 			Table[i]->line[j].R = 0;
 }
 
-int procuraPagina(PageTable *table, unsigned short page) 
-{
-	int i;
-
-	//verifica se a pagina ja esta na tabela
-	for (i=0;i<table->last; i++) {
-		if (table->line[i].page == page)
-			return i; //retorna o indice onde ja esta a pagina
-	}
-
-	//nao encontrou, entao adiciona a pagina no ultimo indice e incrementa o contador de ultima pagina
-	table->last ++;
-
-	//retorna a primeira linha livre
-	return i;
-}
-
 void swap (int procID, unsigned short page, char rw)
 {
 	unsigned short freeframe;
-	int menori, menorj, pageIndex;
+	int menori, menorj;
 	counter++;
 	//printf("\n[GM][swap] swapmem frame = %04x\n", swapmem->frame);
-	sleep(1);
+	//[DUVIDA]PRA QUE ESSE SLEEP?
+	//sleep(1);
 
+	/* TODO: ISSO PRECISA SER ALTERADO PARA CADA ACESSO À PAGINA E NAO A CADA SWAP */
 	if (counter>ZERAR)
 		zerarReferenciado();
 
-	pageIndex = procuraPagina(Table[procID], page);
-
 	if (freeFrame(&freeframe)) //Existe frame livre
 	{
-		Table[procID]->line[pageIndex].frame = freeframe;
+		Table[procID]->line[page].frame = freeframe;
 
 		//printf("\n[GM][swap] swapmem frame = %04x", swapmem->frame);
 		//[DUVIDA]pra que isso?
@@ -249,35 +239,36 @@ void swap (int procID, unsigned short page, char rw)
 	else // Todos os frames estao ocupados
 	{
 		leastFrequentlyUsed(procID, &menori, &menorj);
-		if (Table[menori]->line[menorj].M) //Swap com pagina modificada (2 segundos)
+		printf("Page-out %04x (processo %d)\n", Table[menori]->line[menorj].page, menori);
+		if (Table[menori]->line[menorj].M) //Page out com pagina modificada (2 segundos)
 		{
 			printf("Page-out com pagina modificada\n");
 			sleep(1); //precisa pausar + 1 segundo
 		}
-		printf("Page-out %04x (processo %d)\n", Table[menori]->line[menorj].page, menori);
 
 		//invalida o BV da pagina que sofreu page out
 		Table[menori]->line[menorj].V = 0;
-		//TODO: ADICIONAR UM SWAPMEM SÓ PRA PAGE OUT
-		/*
-		swapmem->procID =  menori;
-		swapmem->rw =  Table[menori]->line[menorj].rw;
-		swapmem->page = Table[menori]->line[menorj].page;
-		swapmem->frame = Table[menori]->line[menorj].frame;
-		*/
-		if (menori != procID)
+
+		//TODO: ADICIONAR UM SWAPMEM SÓ PRA PAGE OUT -> necessario?
+		//DUVIDA: por que só quando o processo for diferente?
+		if (menori != procID) {
+			swapmem->procID =  menori;
+			swapmem->rw =  Table[menori]->line[menorj].M;
+			swapmem->page = Table[menori]->line[menorj].page;
+			swapmem->frame = Table[menori]->line[menorj].frame;
 			kill(pid[menori], SIGUSR2); //Avisa que perdeu uma pagina
+		}
 		
 		//passa o frame do que tá saindo pro que tá entrando
-		Table[procID]->line[pageIndex].frame = Table[menori]->line[menorj].frame;
-		Table[menori]->line[menorj].frame = 0xffff;	
+		Table[procID]->line[page].frame = Table[menori]->line[menorj].frame;
+		Table[menori]->line[menorj].frame = 0xffff; //só para ficar visivel na tabela que a page nao tem frame	
 	}
 
-	Table[procID]->line[pageIndex].page = page;
-	Table[procID]->line[pageIndex].M = (rw == 'W');
-	Table[procID]->line[pageIndex].R = 1;
-	Table[procID]->line[pageIndex].V = 1;
-
+	//termina de configurar os valores da page pós page fault
+	Table[procID]->line[page].page = page;
+	Table[procID]->line[page].M = (rw == 'W');
+	Table[procID]->line[page].R = 1;
+	Table[procID]->line[page].V = 1;
 }
 
 /*
@@ -294,8 +285,6 @@ void sigusr1Handler (int signal)
 
 	//printf("[GM][sigusrHandler]swapmem->frame = %04x",swapmem->frame);
 	kill(pid[swapmem->procID], SIGCONT);
-	
-	//semaforoV();
 }
 
 //inicializa a area de memoria que sera usada para armazenar informacoes da pagina que sofreu page fault ou page out
@@ -319,6 +308,15 @@ PageTable* initTable (int *TableID)
 	return table;
 }
 
+void initMemory() {
+	int i;
+	for (i=0;i<MAXTABLE;i++){
+		memframe[i].page = 0xffff;
+		memframe[i].status = LIVRE;
+		memframe[i].process = 0xffff;
+	}
+}
+
 void liberaTable (PageTable* table, int tableID)
 {
 	shmdt(table);
@@ -337,8 +335,7 @@ void askForSwap (int procID, unsigned short page, char rw)
 	//printf("\n[P][askForSwap]frame = %04x \n", swapmem->frame);
 	
 	/*	confira a area de memoria com a page que solicitou o page fault
-		assim o GM conseguirá saber qual foi o processo e a page de page fault */
-
+		assim o GM saber qual foi o processo que pediu page fault e qual a page */
 	swapmem->procID = procID;
 	swapmem->page = page;
 	swapmem->rw = rw;
@@ -360,10 +357,13 @@ void request (int procID,  unsigned int addr, char rw)
 
 		askForSwap(procID, page, rw);
 		sleep(1);	//Garante que ele recebe o sigstop antes de sair da funcao
-		frame = swapmem->frame;
+
+		//frame = swapmem->frame;
 		//printf("[P][request]swapmem->frame = %04x",swapmem->frame);
+		printf("\t\t%c :%08x -> %04x%04x\n",rw, addr, Table[procID]->line[page].frame, offset);
+	} else {
+		printf("\t\t%c :%08x -> %04x%04x\n",rw, addr, frame, offset);
 	}
-	printf("\t\t%c :%08x -> %04x%04x\n",rw, addr, frame, offset);
 }
 
 void emptyTable (PageTable *table)

@@ -35,6 +35,8 @@ int main (void)
 	signal(SIGUSR1, sigusr1Handler);
 	signal(SIGINT, intHandler);
 	signal(SIGUSR2, sigusr2Handler);
+
+	//initMemory();
 	
 	//configura semaforo
 	semID = semget (8761, 1, 0666 | IPC_CREAT);

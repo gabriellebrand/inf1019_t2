@@ -10,6 +10,7 @@ int semID;
 PageTable *Table[4];
 SwapRequest *swapmem;
 
+
 /*prototipo das funcoes do semaforo*/
 int setSemValue();
 void delSemValue();
@@ -19,9 +20,11 @@ int semaforoV();
 /*prototipo das funcoes de inicializacao das memorias compartilhadas*/
 SwapRequest* inicializaSwapmem (int *swapmemID);
 PageTable* initTable (int *TableID);
+void initMemory();
 
 void liberaTable (PageTable* table, int tableID);
 void emptyTable(PageTable *table);
+
 
 void sigusr1Handler (int signal);
 
