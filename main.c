@@ -58,7 +58,7 @@ int main (void)
 			{
 				
 				fscanf(file[i], "%x %c ", &addr, &rw);
-				printf("\nTO AGUARDANDO P%d\n",i);
+				//printf("\nTO AGUARDANDO P%d\n",i);
 				semaforoP();
 				printf(printstr[i], addr, rw, j);
 				request(i, addr, rw);

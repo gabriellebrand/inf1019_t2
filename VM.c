@@ -102,7 +102,8 @@ void printTables ()
 }
 
 void sigusr2Handler (int signal) {
-	sleep(1); //dorme por 1 segundo 
+	printf("\nProcesso perdeu pagina pagina \n");
+	//sleep(1); //dorme por 1 segundo 
 }
 
 void leastFrequentlyUsed (int procID, int *menori, int *menorj)
@@ -170,6 +171,7 @@ int isOnMemory (PageTable *table, unsigned short page, unsigned short *frame, ch
 * Se achar um frame livre, retorna 1 e o respectivo frame por referencia. 
 * Se nao, retorna 0.
 */
+
 int freeFrame (unsigned short *free)
 {
 	//char frame[MAXFRAME];
