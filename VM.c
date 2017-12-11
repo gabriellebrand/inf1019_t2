@@ -261,7 +261,7 @@ void swap (int procID, unsigned short page, char rw)
 		
 		//passa o frame do que tá saindo pro que tá entrando
 		Table[procID]->line[page].frame = Table[menori]->line[menorj].frame;
-		Table[menori]->line[menorj].frame = 0xffff; //só para ficar visivel na tabela que a page nao tem frame	
+		//Table[menori]->line[menorj].frame = 0xffff; //só para ficar visivel na tabela que a page nao tem frame	
 	}
 
 	//termina de configurar os valores da page pós page fault
