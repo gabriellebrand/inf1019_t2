@@ -97,7 +97,7 @@ int semaforoV()
 
 void printMemory ()
 {
-	int i, j;
+	int i;
 	for (i=0; i<MAXFRAME; i++)
 	{	
 		//if(Table[memframe[i].process]-> dead) continue; //só vai imprimir as tabelas dos processos que ainda estão ativos
@@ -229,8 +229,8 @@ void swap (int procID, unsigned short page, char rw)
 	{
 		Table[procID]->line[page].frame = freeframe;
 
-		memframe[freeFrame].process = procID;
-		memframe[freeFrame].page = page;
+		memframe[(int)freeFrame].process = procID;
+		memframe[(int)freeFrame].page = page;
 		//printf("\n[GM][swap] swapmem frame = %04x", swapmem->frame);
 		//[DUVIDA]pra que isso?
 		swapmem->frame = freeframe;
@@ -239,7 +239,7 @@ void swap (int procID, unsigned short page, char rw)
 	else // Todos os frames estao ocupados
 	{
 		leastFrequentlyUsed(procID, &menori, &menorj);
-		printf("Page-out %04x (processo %d)\n", Table[menori]->line[menorj].page, menori);
+		printf("Page-out %04x (processo %d)\n", menorj, menori);
 		if (Table[menori]->line[menorj].M) //Page out com pagina modificada (2 segundos)
 		{
 			printf("Page-out com pagina modificada\n");
