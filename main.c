@@ -48,7 +48,6 @@ int main (void)
 	
 	//inicializa area de memoria que armazena a pagina de page out / page fault
 	swapmem = inicializaSwapmem (&swapmemID);
-	swapOut = inicializaSwapmem (&swapOutID);
 	countID = shmget (IPC_PRIVATE, sizeof(int), IPC_CREAT|S_IRWXU);
 	counter = (int*) shmat (countID, 0, 0);
 
@@ -62,14 +61,13 @@ int main (void)
 			file[i] = fopen(filename[i], "r");
 			sleep(2); //garante q o GM inicializou o seu loop infinito
 			
-			//if (i==1) {
-			while (j<=10)
+			while (1)
 			{
 				
 				fscanf(file[i], "%x %c ", &addr, &rw);
 				semaforoP();
 				printf(printstr[i], addr, rw, j);
-				request(i, addr, rw);
+				trans(i, addr, rw);
 				printf("\n");
 				semaforoV();
 				
@@ -77,14 +75,9 @@ int main (void)
 				j++;
 				
 
-			} //}
+			}
 			printf("processo morreu \n");
-
-			//esvaziaTabela(Table[i]);
-			//while(1);
-			//while (fscanf(file[i], "%x %c ", &addr, &rw) == 2);
-			//shmdt(Table[i]);
-
+		
 			fclose (file[i]);
 			
 			exit(0);
@@ -93,10 +86,7 @@ int main (void)
 		}
 	}
 
-	//while(1);
-
 	while (procs) {
-		//sleep(1);
 		checkCounter(counter);
 		if ((pid_id = waitpid(-1, &status, WNOHANG)) > 0){
 			for(i=0;i<4;i++) {
@@ -108,7 +98,6 @@ int main (void)
 			printf("waitpid = %d\n", i);
 			removeProcess(i);
 		}
-		//
 	}
 
 	for (i=0; i<4; i++)
