@@ -1,10 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/types.h>
-#include <sys/wait.h> 
+#include <sys/wait.h>
 #include <sys/ipc.h>
+#include <sys/shm.h>
 #include <sys/sem.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include "VM.h"
 
 int pid[4]={0,0,0,0};
@@ -24,7 +28,7 @@ int main (void)
 {
 	unsigned int addr;
 	char rw;
-	int wait, status, i, j=0;
+	int procs = 4, pid_id, status, i, j=0;
 	FILE *file[4];
 
 	swapmemID = 0;
@@ -44,6 +48,9 @@ int main (void)
 	
 	//inicializa area de memoria que armazena a pagina de page out / page fault
 	swapmem = inicializaSwapmem (&swapmemID);
+	swapOut = inicializaSwapmem (&swapOutID);
+	countID = shmget (IPC_PRIVATE, sizeof(int), IPC_CREAT|S_IRWXU);
+	counter = (int*) shmat (countID, 0, 0);
 
 	for (i=0; i<4; i++)
 	{
@@ -60,13 +67,12 @@ int main (void)
 			{
 				
 				fscanf(file[i], "%x %c ", &addr, &rw);
-				//printf("\nTO AGUARDANDO P%d\n",i);
 				semaforoP();
 				printf(printstr[i], addr, rw, j);
 				request(i, addr, rw);
+				printf("\n");
 				semaforoV();
 				
-				printf("\n");
 				sleep(1);
 				j++;
 				
@@ -74,7 +80,6 @@ int main (void)
 			} //}
 			printf("processo morreu \n");
 
-			emptyTable(Table[i]);
 			//esvaziaTabela(Table[i]);
 			//while(1);
 			//while (fscanf(file[i], "%x %c ", &addr, &rw) == 2);
@@ -90,10 +95,20 @@ int main (void)
 
 	//while(1);
 
-	for (i=0;i<4;i++) {
-		sleep(1);
-		wait = waitpid(-1, &status, WNOHANG);
-		printf("waitpid = %d\n", wait);
+	while (procs) {
+		//sleep(1);
+		checkCounter(counter);
+		if ((pid_id = waitpid(-1, &status, WNOHANG)) > 0){
+			for(i=0;i<4;i++) {
+				if(pid[i] == pid_id){
+					procs--;
+					break;
+				}
+			}
+			printf("waitpid = %d\n", i);
+			removeProcess(i);
+		}
+		//
 	}
 
 	for (i=0; i<4; i++)

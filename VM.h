@@ -4,11 +4,11 @@ typedef struct table PageTable;
 typedef struct swapRequest SwapRequest;
 
 int pid[4];
-int swapmemID;
+int swapmemID, swapOutID, countID, *counter;
 int semID;
 
 PageTable *Table[4];
-SwapRequest *swapmem;
+SwapRequest *swapmem, *swapOut;
 
 
 /*prototipo das funcoes do semaforo*/
@@ -23,8 +23,9 @@ PageTable* initTable (int *TableID);
 void initMemory();
 
 void liberaTable (PageTable* table, int tableID);
-void emptyTable(PageTable *table);
+void removeProcess(int procID);
 
+void checkCounter(int *counter);
 
 void sigusr1Handler (int signal);
 
